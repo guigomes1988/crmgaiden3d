@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaiden City CRM</title>
+<style>
+  :root{
+    --bg:#0f1420; --glass:rgba(16,22,34,.86); --line:rgba(255,255,255,.10);
+    --text:#eef2f8; --muted:#9aa6ba; --accent:#ff7a59; --ok:#38c793; --warn:#ffc145; --bad:#ff5c6c;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font:14px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #scene{position:fixed;inset:0}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;border:1px solid var(--line);background:rgba(255,255,255,.06);border-radius:10px;padding:7px 12px;transition:.15s}
+  button:hover{background:rgba(255,255,255,.14)}
+  button.primary{background:var(--accent);border-color:transparent;color:#1a0f0a;font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  button.danger{color:var(--bad);border-color:rgba(255,92,108,.35)}
+  button.ghost{background:none;border:none;padding:4px 8px}
+
+  /* HUD */
+  #hud{position:fixed;top:12px;left:12px;right:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;pointer-events:none;z-index:5}
+  #hud > *{pointer-events:auto}
+  body.panel-open #hud{right:444px}
+  .brand{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;display:flex;flex-direction:column;justify-content:center}
+  .brand b{font-size:16px;letter-spacing:.3px}
+  .brand span{color:var(--muted);font-size:12px}
+  .stats{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+  .stat{background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:var(--radius);padding:8px 12px;min-width:120px}
+  .stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .stat b{font-size:15px;font-variant-numeric:tabular-nums}
+  .stat.alert b{color:var(--bad)}
+  .tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
+
+  /* Painel lateral */
+  #panel{position:fixed;top:12px;right:12px;bottom:12px;width:min(420px,calc(100vw - 24px));background:var(--glass);backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:18px;overflow:auto;z-index:10;padding:18px;transition:transform .25s, opacity .25s}
+  #panel.hidden{transform:translateX(30px);opacity:0;pointer-events:none}
+  .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+  .ph h2{margin:2px 0 6px;font-size:20px;line-height:1.2}
+  .kicker{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-right:4px;font-weight:600}
+  .s-ativo{background:rgba(56,199,147,.18);color:var(--ok)}
+  .s-negociacao{background:rgba(255,193,69,.18);color:var(--warn)}
+  .s-cancelado{background:rgba(154,166,186,.18);color:var(--muted)}
+  .s-atraso{background:rgba(255,92,108,.2);color:var(--bad)}
+  .card{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:rgba(255,255,255,.03)}
+  .card h3{margin:0 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:4px 0}
+  .row span{color:var(--muted)}
+  .row b{font-variant-numeric:tabular-nums;text-align:right}
+  .row.big b{font-size:20px}
+  .row.total{border-top:1px dashed var(--line);margin-top:6px;padding-top:8px}
+  .nf{background:#f6f3ea;color:#232323;border-radius:10px;padding:14px;margin:10px 0;font-family:"Courier New",monospace;font-size:12.5px;position:relative}
+  .nf:after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:8px;background:radial-gradient(circle at 6px -2px,transparent 6px,#f6f3ea 6.5px) repeat-x;background-size:12px 8px}
+  .nf h4{margin:0 0 2px;font-size:13px;text-align:center;letter-spacing:1px}
+  .nf .sub{text-align:center;font-size:10.5px;color:#6b6b6b;margin-bottom:8px}
+  .nf .row span{color:#555}
+  .nf hr{border:none;border-top:1px dashed #b7b2a5;margin:6px 0}
+  .share{margin:8px 0}
+  .share .top{display:flex;justify-content:space-between;gap:8px}
+  .bar{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:4px}
+  .bar i{display:block;height:100%}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .muted{color:var(--muted)}
+  .list-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+  .list-item:hover{background:rgba(255,255,255,.06);border-color:var(--line)}
+  .tag{font-size:11px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.07);margin:2px 4px 2px 0;display:inline-block}
+
+  /* Formulários */
+  label{display:block;margin:10px 0 4px;color:var(--muted);font-size:12px}
+  input,select,textarea{width:100%;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  select option{background:#1b2232}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  .split-row{display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center;margin:6px 0}
+  .split-row input{text-align:right}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .err{color:var(--bad)}
+
+  /* Etiquetas 3D */
+  .lbl{pointer-events:auto;cursor:pointer;background:rgba(12,16,26,.82);border:1px solid rgba(255,255,255,.14);color:#fff;
+    padding:4px 9px;border-radius:9px;font-size:12px;white-space:nowrap;text-align:center;transform:translateY(-50%);user-select:none}
+  .lbl:hover{border-color:var(--accent)}
+  .lbl small{display:block;color:#b9c3d6;font-size:11px}
+  .lbl.hall{background:rgba(255,122,89,.92);color:#1a0f0a;border-color:transparent;font-weight:700}
+  .lbl.hall small{color:#3a1d12}
+  .lbl.home{background:rgba(255,255,255,.9);color:#1a1f2b}
+  .lbl.home small{color:#4a5366}
+  .lbl.neg{border-color:rgba(255,193,69,.6)}
+  .lbl.off{opacity:.6}
+  .lbl.late{border-color:var(--bad);box-shadow:0 0 0 2px rgba(255,92,108,.25)}
+  .lbl.empty{background:rgba(255,255,255,.12);color:#dfe5ef;font-size:11px;padding:2px 7px}
+  body.no-labels .lbl{display:none}
+  body.no-labels .lbl.hall{display:block}
+
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#1d2536;border:1px solid var(--line);
+    padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;z-index:20;pointer-events:none}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  #help{position:fixed;left:12px;bottom:12px;color:var(--muted);font-size:12px;background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:6px 10px;z-index:4}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;color:var(--muted);z-index:30;background:var(--bg)}
+
+  @media (max-width:760px){
+    .stat{min-width:0;flex:1 1 30%;padding:6px 8px}
+    .stat b{font-size:13px}
+    #panel{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:62vh}
+    #help{display:none}
+    body.panel-open #hud{right:12px}
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="loading">Construindo a cidade…</div>
+<div id="scene"></div>
+
+<header id="hud">
+  <div class="brand"><b>Gaiden City</b><span>CRM da Gaiden Design</span></div>
+  <div class="stats" id="stats"></div>
+  <div class="tools">
+    <button class="primary" data-act="add-client">+ Nova empresa</button>
+    <button data-act="open-hall">Prefeitura</button>
+    <button data-act="open-list">Empresas</button>
+    <button data-act="toggle-night" id="btnNight">Noite</button>
+    <button data-act="toggle-labels">Etiquetas</button>
+    <button data-act="export">Exportar</button>
+    <button data-act="import">Importar</button>
+  </div>
+</header>
+
+<aside id="panel" class="hidden"></aside>
+<div id="toast"></div>
+<div id="help">Arraste para girar · botão direito para mover · roda para zoom · clique numa construção</div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+/* =========================================================
+   DADOS
+   ========================================================= */
+const STORE = 'gaiden-city-crm-v1';
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmt = v => BRL.format(Number.isFinite(v) ? v : 0);
+const pct = v => (Math.round((v || 0) * 100) / 100).toLocaleString('pt-BR') + '%';
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ym = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+const EMP_COLORS = ['#ff7a59', '#4f9dff', '#38c793', '#ffc145', '#b77dff', '#ff5c8a', '#2ec4d6', '#9bd65b'];
+const STATUS = { ativo: 'Ativo', negociacao: 'Em negociação', cancelado: 'Cancelado' };
+
+function demoData() {
+  const now = ym();
+  const employees = [
+    { id: 'e1', name: 'Funcionário 1', role: 'Direção de arte', color: EMP_COLORS[0] },
+    { id: 'e2', name: 'Funcionário 2', role: 'Design', color: EMP_COLORS[1] },
+    { id: 'e3', name: 'Funcionário 3', role: 'Social media', color: EMP_COLORS[2] },
+  ];
+  const c = (name, fee, status, dueDay, paid, splits, services, contact) =>
+    ({ id: uid(), name, fee, taxRate: null, status, dueDay, lastPaid: paid ? now : null, splits, services, contact });
+  return {
+    taxRate: 6,
+    employees,
+    clients: [
+      c('Padaria Pão Dourado (exemplo)', 2500, 'ativo', 5, true, { e1: 20, e2: 30, e3: 20 }, ['Social media', 'Identidade visual'], { name: 'Contato', phone: '', email: '' }),
+      c('Clínica Sorriso (exemplo)', 6000, 'ativo', 10, true, { e1: 25, e2: 25, e3: 20 }, ['Site', 'Tráfego pago'], { name: 'Contato', phone: '', email: '' }),
+      c('Academia Força Total (exemplo)', 4200, 'ativo', 15, false, { e1: 20, e2: 20, e3: 30 }, ['Social media'], { name: 'Contato', phone: '', email: '' }),
+      c('Construtora Horizonte (exemplo)', 12000, 'ativo', 20, true, { e1: 30, e2: 25, e3: 15 }, ['Branding', 'Site', 'Campanhas'], { name: 'Contato', phone: '', email: '' }),
+      c('Pet Shop Amigo Fiel (exemplo)', 1800, 'ativo', 8, true, { e2: 40, e3: 30 }, ['Social media'], { name: 'Contato', phone: '', email: '' }),
+      c('Restaurante Sabor da Casa (exemplo)', 3500, 'negociacao', 10, false, { e1: 20, e2: 20, e3: 20 }, ['Cardápio', 'Social media'], { name: 'Contato', phone: '', email: '' }),
+      c('Escola Aprender (exemplo)', 5200, 'ativo', 1, false, { e1: 25, e2: 25, e3: 25 }, ['Campanha de matrículas'], { name: 'Contato', phone: '', email: '' }),
+      c('Loja Moda Viva (exemplo)', 2200, 'cancelado', 12, false, { e2: 35, e3: 35 }, ['E-commerce'], { name: 'Contato', phone: '', email: '' }),
+    ],
+  };
+}
+
+let state;
+try { state = JSON.parse(localStorage.getItem(STORE)); } catch { state = null; }
+if (!state || !Array.isArray(state.clients) || !Array.isArray(state.employees)) state = demoData();
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch { toast('Não foi possível salvar no navegador'); }
+  refresh();
+}
+
+/* ---------- Cálculos ---------- */
+const rateOf = c => (c.taxRate === null || c.taxRate === '' || c.taxRate === undefined) ? +state.taxRate : +c.taxRate;
+function calcClient(c) {
+  const fee = +c.fee || 0, rate = rateOf(c), tax = fee * rate / 100, net = fee - tax;
+  const shares = state.employees.map(e => {
+    const p = +(c.splits?.[e.id] || 0);
+    return { e, pct: p, value: net * p / 100 };
+  });
+  const paidOut = shares.reduce((s, x) => s + x.value, 0);
+  return { fee, rate, tax, net, shares, paidOut, agency: net - paidOut, agencyPct: 100 - shares.reduce((s, x) => s + x.pct, 0) };
+}
+const isLate = c => c.status === 'ativo' && c.lastPaid !== ym() && new Date().getDate() > (+c.dueDay || 1);
+function totals() {
+  const t = { fee: 0, tax: 0, net: 0, payroll: 0, agency: 0, active: 0, late: 0, pipeline: 0, emp: {} };
+  state.employees.forEach(e => t.emp[e.id] = { total: 0, clients: 0 });
+  for (const c of state.clients) {
+    const k = calcClient(c);
+    if (c.status === 'negociacao') t.pipeline += k.fee;
+    if (c.status !== 'ativo') continue;
+    t.active++; if (isLate(c)) t.late++;
+    t.fee += k.fee; t.tax += k.tax; t.net += k.net; t.payroll += k.paidOut; t.agency += k.agency;
+    k.shares.forEach(s => { if (s.pct > 0) { t.emp[s.e.id].total += s.value; t.emp[s.e.id].clients++; } });
+  }
+  return t;
+}
+
+/* =========================================================
+   CENA 3D
+   ========================================================= */
+const host = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+host.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+Object.assign(labelRenderer.domElement.style, { position: 'absolute', top: '0', left: '0', pointerEvents: 'none' });
+host.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 4000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.46;
+controls.minDistance = 25;
+controls.maxDistance = 900;
+
+const hemi = new THREE.HemisphereLight(0xdfeeff, 0x4a5a3a, 0.9);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0004;
+scene.add(sun, sun.target);
+
+/* ---------- Materiais e geometrias compartilhados ---------- */
+const UNIT = new THREE.BoxGeometry(1, 1, 1);
+const CYL = new THREE.CylinderGeometry(1, 1, 1, 16);
+const CONE = new THREE.ConeGeometry(1, 1, 8);
+const SPHERE = new THREE.SphereGeometry(1, 16, 12);
+const matCache = new Map();
+function M(color, opts = {}) {
+  const key = color + JSON.stringify(opts);
+  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: .85, ...opts }));
+  return matCache.get(key);
+}
+function mesh(geo, mat, sx, sy, sz, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(geo, typeof mat === 'string' ? M(mat) : mat);
+  m.scale.set(sx, sy, sz); m.position.set(x, y, z);
+  m.castShadow = m.receiveShadow = true;
+  return m;
+}
+const box = (w, h, d, mat, x = 0, y = 0, z = 0) => mesh(UNIT, mat, w, h, d, x, y + h / 2, z);
+
+/* Fachadas com janelas (texturas geradas em canvas) */
+const texCache = new Map();
+let nightMats = [];
+let isNight = false;
+function facadeTextures(wall, glass) {
+  const key = wall + glass;
+  if (texCache.has(key)) return texCache.get(key);
+  const mk = draw => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d'); draw(g);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return t;
+  };
+  const map = mk(g => {
+    g.fillStyle = wall; g.fillRect(0, 0, 128, 128);
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      g.fillStyle = glass; g.fillRect(c * 32 + 6, r * 32 + 8, 20, 18);
+      g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(c * 32 + 6, r * 32 + 8, 20, 5);
+    }
+  });
+  const emi = mk(g => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (Math.random() > .4) {
+      g.fillStyle = Math.random() > .3 ? '#ffd58a' : '#bfe3ff'; g.fillRect(c * 32 + 6, r * 32 + 8, 20, 18);
+    }
+  });
+  const v = { map, emi }; texCache.set(key, v); return v;
+}
+function facadeMat(wall, glass, w, h) {
+  const { map, emi } = facadeTextures(wall, glass);
+  const m = map.clone(), e = emi.clone();
+  m.repeat.set(Math.max(1, Math.round(w / 8)), Math.max(1, Math.round(h / 10)));
+  e.repeat.copy(m.repeat); m.needsUpdate = e.needsUpdate = true;
+  const mat = new THREE.MeshStandardMaterial({ map: m, emissiveMap: e, emissive: 0xffffff, emissiveIntensity: isNight ? 1 : 0, roughness: .6, metalness: .1 });
+  mat.userData.dispose = true;
+  nightMats.push(mat);
+  return mat;
+}
+function tower(w, h, d, wall, glass, x = 0, y = 0, z = 0) {
+  const side = facadeMat(wall, glass, w, h), roof = M('#59606d');
+  const t = new THREE.Mesh(UNIT, [side, side, roof, roof, side, side]);
+  t.scale.set(w, h, d); t.position.set(x, y + h / 2, z);
+  t.castShadow = t.receiveShadow = true;
+  return t;
+}
+function tree(x, z, s = 1, y = 0.3) {
+  const g = new THREE.Group();
+  g.add(mesh(CYL, '#7a5534', .35 * s, 2.2 * s, .35 * s, 0, 1.1 * s, 0));
+  const leaf = ['#3f8f4a', '#4fa35a', '#2f7d45'][Math.floor(Math.random() * 3)];
+  if (Math.random() > .5) g.add(mesh(CONE, leaf, 1.7 * s, 4 * s, 1.7 * s, 0, 3.8 * s, 0));
+  else g.add(mesh(SPHERE, leaf, 1.6 * s, 1.6 * s, 1.6 * s, 0, 3.4 * s, 0));
+  g.position.set(x, y, z);
+  return g;
+}
+function label(html, cls, x, y, z, onClick) {
+  const el = document.createElement('div');
+  el.className = 'lbl ' + (cls || ''); el.innerHTML = html;
+  if (onClick) el.addEventListener('pointerdown', e => { e.stopPropagation(); onClick(); });
+  const o = new CSS2DObject(el); o.position.set(x, y, z);
+  return o;
+}
+const hash = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h); };
+const WALLS = ['#e8e2d6', '#cfd8e3', '#f2c9a0', '#b9c7b5', '#d9b8c4', '#a9b8d6', '#efe6c8', '#d6d0c4'];
+const GLASS = ['#24384f', '#1f4a5a', '#3a3f5c', '#2d4a3e', '#2a3346'];
+
+/* =========================================================
+   CONSTRUÇÃO DA CIDADE
+   ========================================================= */
+const BLOCK = 40, ROAD = 12, P = BLOCK + ROAD, SLAB = 0.3;
+let city = null, pickRoots = [], cars = [], beacons = [], flags = [];
+const entityPos = new Map();   // id -> {pos, h}
+let cityHalf = 200;
+
+function disposeCity() {
+  if (!city) return;
+  city.traverse(o => {
+    if (o.isCSS2DObject) o.element.remove();
+    if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+      if (m.userData.dispose) { m.map?.dispose(); m.emissiveMap?.dispose(); m.dispose(); }
+    });
+    if (o.geometry && o.geometry.userData.dispose) o.geometry.dispose();
+  });
+  scene.remove(city);
+}
+
+function layout() {
+  const E = state.employees.length;
+  const order = { ativo: 0, negociacao: 1, cancelado: 2 };
+  const clients = [...state.clients].sort((a, b) => (order[a.status] - order[b.status]) || ((+b.fee || 0) - (+a.fee || 0)));
+  const resBlocks = Math.max(1, Math.ceil(E / 4));
+  for (let k = 1; k < 30; k++) {
+    const coords = [];
+    for (let x = -k; x <= k; x++) for (let z = -k; z <= k; z++) coords.push([x, z]);
+    coords.sort((a, b) => (Math.hypot(...a) - Math.hypot(...b)) || (Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0])));
+    const blocks = coords.map(([x, z], i) => {
+      let type = 'commercial';
+      if (i === 0) type = 'hall';
+      else if (i <= resBlocks) type = 'residential';
+      else if ((i - resBlocks) % 6 === 3) type = 'park';
+      return { x, z, type };
+    });
+    const cap = blocks.filter(b => b.type === 'commercial').length * 4;
+    if (cap >= clients.length + 3) return { k, blocks, clients, resBlocks };
+  }
+}
+
+function buildCity() {
+  disposeCity();
+  city = new THREE.Group(); scene.add(city);
+  pickRoots = []; cars = []; beacons = []; flags = []; nightMats = []; entityPos.clear();
+
+  const { k, blocks, clients } = layout();
+  const S = (2 * k + 1) * P + ROAD; cityHalf = S / 2;
+
+  // Chão: grama ao redor e asfalto na cidade
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(S * 4, S * 4), M('#6f9a58'));
+  grass.geometry.userData.dispose = true;
+  grass.rotation.x = -Math.PI / 2; grass.position.y = -0.05; grass.receiveShadow = true; city.add(grass);
+  const asphalt = new THREE.Mesh(new THREE.PlaneGeometry(S, S), M('#3b3f47'));
+  asphalt.geometry.userData.dispose = true;
+  asphalt.rotation.x = -Math.PI / 2; asphalt.receiveShadow = true; city.add(asphalt);
+
+  // Faixas das ruas
+  const roadLines = []; for (let i = -k - 1; i <= k; i++) roadLines.push((i + 0.5) * P);
+  const dashes = [];
+  for (const r of roadLines) for (let t = -S / 2 + 3; t < S / 2 - 3; t += 6) {
+    if (roadLines.some(q => Math.abs(q - t) < ROAD / 2 + 1)) continue;
+    dashes.push([r, t, 'z'], [t, r, 'x']);
+  }
+  const dashMesh = new THREE.InstancedMesh(UNIT, M('#e9e4cf'), dashes.length);
+  const dm = new THREE.Matrix4(), q = new THREE.Quaternion();
+  dashes.forEach(([x, z, axis], i) => {
+    dm.compose(new THREE.Vector3(x, 0.02, z), q, axis === 'z' ? new THREE.Vector3(.25, .04, 3) : new THREE.Vector3(3, .04, .25));
+    dashMesh.setMatrixAt(i, dm);
+  });
+  city.add(dashMesh);
+
+  // Carros
+  const CAR_COLORS = ['#e94b4b', '#f2f2f2', '#2d6cdf', '#f7c548', '#1f2a3a', '#47b39d', '#c06cd8'];
+  for (const r of roadLines) for (const axis of ['x', 'z']) for (const dir of [1, -1]) {
+    if (Math.random() < .35) continue;
+    const g = new THREE.Group();
+    const col = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+    g.add(box(4.2, 1.2, 2, col, 0, .35, 0));
+    g.add(box(2.4, .9, 1.8, '#9cc3e6', -.2, 1.55, 0));
+    [[-1.4, 1], [1.4, 1], [-1.4, -1], [1.4, -1]].forEach(([a, b]) => g.add(box(.9, .7, .3, '#151515', a, 0, b * 1)));
+    g.rotation.y = axis === 'x' ? (dir > 0 ? 0 : Math.PI) : (dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+    city.add(g);
+    cars.push({ g, axis, line: r + dir * 3, dir, speed: 9 + Math.random() * 9, t: (Math.random() - .5) * S });
+  }
+
+  // Quarteirões
+  let lotIndex = 0, residentIndex = 0;
+  for (const b of blocks) {
+    const cx = b.x * P, cz = b.z * P;
+    const blockG = new THREE.Group(); blockG.position.set(cx, 0, cz); city.add(blockG);
+    const slabColor = b.type === 'park' ? '#5f9b4f' : b.type === 'hall' ? '#d8d2c4' : '#b9b6ae';
+    blockG.add(box(BLOCK, SLAB, BLOCK, slabColor));
+    if (b.type === 'hall') buildHall(blockG, cx, cz);
+    else if (b.type === 'park') buildPark(blockG);
+    else if (b.type === 'residential') {
+      for (const [ox, oz] of [[-10, -10], [10, -10], [-10, 10], [10, 10]]) {
+        const e = state.employees[residentIndex++];
+        if (e) buildHouse(blockG, e, ox, oz, cx, cz);
+        else { blockG.add(mesh(CYL, '#4f9a55', 3, .2, 3, ox, SLAB, oz)); blockG.add(tree(ox + 3, oz - 2, 1)); }
+      }
+    } else {
+      for (const [ox, oz] of [[-10, -10], [10, -10], [-10, 10], [10, 10]]) {
+        const c = clients[lotIndex++];
+        if (c) buildCompany(blockG, c, ox, oz, cx, cz);
+        else buildEmptyLot(blockG, ox, oz);
+      }
+    }
+    // árvores nas esquinas da calçada
+    if (b.type !== 'park') for (const [ox, oz] of [[-18.5, -18.5], [18.5, 18.5], [-18.5, 18.5], [18.5, -18.5]]) blockG.add(tree(ox, oz, .7));
+  }
+
+  // Sombra cobrindo a cidade
+  const sc = sun.shadow.camera, half = S / 2 + 30;
+  sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.near = 1; sc.far = S * 3;
+  sun.position.set(S * .45, S * .9, S * .3); sc.updateProjectionMatrix();
+  scene.fog = new THREE.Fog(isNight ? 0x0b1020 : 0xbcd6ee, S * 1.2, S * 3.2);
+  applyNight();
+}
+
+function buildHall(g, cx, cz) {
+  // praça
+  g.add(box(36, .1, 36, '#e7e1d3', 0, SLAB, 0));
+  const hall = new THREE.Group(); hall.position.set(0, SLAB, -4);
+  hall.add(box(26, 1.2, 16, '#cfc8b8', 0, 0, 0));                  // escadaria/base
+  hall.add(tower(22, 10, 12, '#f1ece0', '#2d3e55', 0, 1.2, -1));     // corpo
+  for (let i = 0; i < 6; i++) hall.add(mesh(CYL, '#fbf8f0', .7, 9, .7, -8.75 + i * 3.5, 1.2 + 4.5, 6.2)); // colunas
+  hall.add(box(24, 1, 3, '#f1ece0', 0, 10.2, 5.5));                  // viga
+  const tri = new THREE.Shape([new THREE.Vector2(-12, 0), new THREE.Vector2(12, 0), new THREE.Vector2(0, 4.5)]);
+  const ped = mesh(new THREE.ExtrudeGeometry(tri, { depth: 2.6, bevelEnabled: false }), '#f1ece0', 1, 1, 1, 0, 10.7, 4.2);
+  ped.geometry.userData.dispose = true; hall.add(ped);
+  hall.add(mesh(CYL, '#f1ece0', 5, 3, 5, 0, 12.7, -1));              // tambor
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), M('#ff7a59', { metalness: .3, roughness: .4 }));
+  dome.geometry.userData.dispose = true; dome.position.set(0, 14.2, -1); dome.castShadow = true; hall.add(dome);
+  hall.add(mesh(CYL, '#d0d0d0', .12, 6, .12, 0, 21.5, -1));          // mastro
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2), M('#ff7a59', { side: THREE.DoubleSide }));
+  flag.geometry.userData.dispose = true; flag.position.set(1.65, 23.3, -1); hall.add(flag); flags.push(flag);
+  g.add(hall);
+  // fonte
+  g.add(mesh(CYL, '#cfc8b8', 3.2, .8, 3.2, 0, SLAB + .4, 13));
+  g.add(mesh(CYL, '#5fb4e6', 2.7, .2, 2.7, 0, SLAB + .75, 13));
+  g.add(mesh(CYL, '#cfc8b8', .5, 2.4, .5, 0, SLAB + 1.2, 13));
+  for (const [x, z] of [[-15, 13], [15, 13], [-15, -15], [15, -15], [-15, 0], [15, 0]]) g.add(tree(x, z, .9));
+  hall.userData.pick = { type: 'hall' }; pickRoots.push(hall);
+  const t = totals();
+  hall.add(label(`Prefeitura · Gaiden Design<small>Caixa ${fmt(t.agency)}/mês</small>`, 'hall', 0, 27, -1, openHall));
+  entityPos.set('hall', { pos: new THREE.Vector3(cx, 0, cz - 4), h: 22 });
+}
+
+function buildPark(g) {
+  g.add(box(4, .06, 38, '#d9c9a3', 0, SLAB, 0));
+  g.add(box(38, .06, 4, '#d9c9a3', 0, SLAB, 0));
+  g.add(mesh(CYL, '#4ba3d6', 6, .15, 4.5, 10, SLAB + .05, 10));
+  for (let i = 0; i < 16; i++) {
+    const x = (Math.random() - .5) * 34, z = (Math.random() - .5) * 34;
+    if (Math.abs(x) < 3.5 || Math.abs(z) < 3.5 || (Math.hypot(x - 10, z - 10) < 7)) continue;
+    g.add(tree(x, z, .8 + Math.random() * .5));
+  }
+  for (const [x, z] of [[-6, 3], [6, -3]]) g.add(box(3, .5, 1, '#8a5a3a', x, SLAB + .4, z));
+}
+
+function buildEmptyLot(g, ox, oz) {
+  g.add(box(16, .1, 16, '#a89a7c', ox, SLAB, oz));
+  g.add(box(.25, 3, .25, '#6b4f36', ox - 5, SLAB, oz + 5));
+  g.add(box(3.4, 1.8, .2, '#f4f1e6', ox - 5, SLAB + 2.2, oz + 5));
+  const hit = box(16, 1, 16, new THREE.MeshBasicMaterial({ visible: false }), ox, SLAB, oz);
+  hit.castShadow = hit.receiveShadow = false; hit.material.userData.dispose = true;
+  hit.userData.pick = { type: 'empty' }; g.add(hit); pickRoots.push(hit);
+  g.add(label('Lote disponível', 'empty', ox - 5, SLAB + 5, oz + 5, () => openClientForm(null)));
+}
+
+function buildHouse(g, e, ox, oz, cx, cz) {
+  const house = new THREE.Group(); house.position.set(ox, SLAB, oz);
+  house.add(box(15, .1, 15, '#7fb069', 0, 0, 0));
+  house.add(box(9, 5.5, 8, '#f3efe7', 0, 0, -1));
+  const roof = mesh(CONE, e.color, 7.2, 4, 6.6, 0, 7.5, -1); roof.rotation.y = Math.PI / 4; house.add(roof);
+  house.add(box(1.6, 2.8, .2, '#6b4f36', 0, 0, 3.05));
+  house.add(box(1.8, 1.4, .2, '#9cc3e6', -2.6, 2.2, 3.05));
+  house.add(box(1.8, 1.4, .2, '#9cc3e6', 2.6, 2.2, 3.05));
+  house.add(box(.25, 1, 12, '#ffffff', 7, 0, 0));
+  house.add(tree(-5.5, 5, .7, 0));
+  house.userData.pick = { type: 'employee', id: e.id }; pickRoots.push(house);
+  const t = totals().emp[e.id] || { total: 0 };
+  house.add(label(`${esc(e.name)}<small>${fmt(t.total)}/mês</small>`, 'home', 0, 11, -1, () => openEmployee(e.id)));
+  g.add(house);
+  entityPos.set(e.id, { pos: new THREE.Vector3(cx + ox, 0, cz + oz), h: 10 });
+}
+
+function buildCompany(g, c, ox, oz, cx, cz) {
+  const lot = new THREE.Group(); lot.position.set(ox, SLAB, oz);
+  const h0 = hash(c.id), fee = +c.fee || 0;
+  const wall = c.status === 'cancelado' ? '#8d9098' : WALLS[h0 % WALLS.length];
+  const glass = c.status === 'cancelado' ? '#3a3d44' : GLASS[(h0 >> 3) % GLASS.length];
+  let h = Math.min(70, 6 + 7 * Math.log2(1 + fee / 1500));
+  lot.add(box(16, .1, 16, c.status === 'cancelado' ? '#8f8f8a' : '#9aa0a6', 0, 0, 0));
+  lot.add(box(3, .12, 14, '#cfcfcf', 6.2, 0, 0)); // estacionamento
+
+  if (c.status === 'negociacao') {
+    // Obra: estrutura parcial + andaimes + guindaste
+    const built = h * .45;
+    lot.add(tower(10, built, 10, wall, glass, -1, 0, 0));
+    const scaf = new THREE.Mesh(new THREE.EdgesGeometry(new THREE.BoxGeometry(10.6, h, 10.6, 2, Math.max(2, Math.round(h / 4)), 2)),
+      new THREE.LineBasicMaterial({ color: '#ffc145' }));
+    scaf.geometry.userData.dispose = true; scaf.material.userData.dispose = true;
+    scaf.position.set(-1, h / 2, 0); lot.add(scaf);
+    lot.add(box(.8, h + 8, .8, '#ffc145', 5, 0, -5));
+    lot.add(box(16, .8, .8, '#ffc145', 1, h + 7.2, -5));
+    lot.add(box(.1, 5, .1, '#333', -5, h + 2.4, -5));
+    lot.add(box(1.5, 1.5, 1.5, '#555', 8, h + 7, -5));
+  } else {
+    const v = h0 % 3;
+    if (v === 0) lot.add(tower(10, h, 10, wall, glass, -1, 0, 0));
+    else if (v === 1) {
+      lot.add(tower(11, h * .6, 11, wall, glass, -1, 0, 0));
+      lot.add(tower(7, h * .4, 7, wall, glass, -1, h * .6, 0));
+    } else {
+      lot.add(tower(12, Math.min(8, h * .35), 9, wall, glass, -1, 0, 2));
+      lot.add(tower(7, h, 7, wall, glass, -1, 0, -2));
+    }
+    // detalhes do telhado
+    lot.add(box(2, 1.2, 2, '#9aa0a8', 1, h, 1.5));
+    if (h > 25) lot.add(box(.2, 5, .2, '#c9c9c9', -3, h, -1));
+    // placa/letreiro
+    if (c.status === 'ativo') lot.add(box(6, 1.2, .3, '#ff7a59', -1, 1.8, 5.8));
+  }
+  const late = isLate(c);
+  if (late) {
+    const bcn = new THREE.Mesh(SPHERE, new THREE.MeshStandardMaterial({ color: '#ff3b4a', emissive: '#ff3b4a', emissiveIntensity: 2 }));
+    bcn.material.userData.dispose = true; bcn.scale.setScalar(.9); bcn.position.set(-1, h + 1.3, 0);
+    lot.add(bcn); beacons.push(bcn);
+  }
+  lot.add(tree(6.5, 6.5, .6, 0)); lot.add(tree(6.5, -6.5, .6, 0));
+  lot.userData.pick = { type: 'client', id: c.id }; pickRoots.push(lot);
+  const k = calcClient(c);
+  const cls = c.status === 'negociacao' ? 'neg' : c.status === 'cancelado' ? 'off' : late ? 'late' : '';
+  const sub = c.status === 'negociacao' ? `Em obra · proposta ${fmt(k.fee)}` : c.status === 'cancelado' ? 'Fechado' : `Aluguel ${fmt(k.fee)}${late ? ' · atrasado' : ''}`;
+  lot.add(label(`${esc(c.name)}<small>${sub}</small>`, cls, -1, h + (c.status === 'negociacao' ? 10 : 4), 0, () => openClient(c.id)));
+  g.add(lot);
+  entityPos.set(c.id, { pos: new THREE.Vector3(cx + ox, 0, cz + oz), h });
+}
+
+/* ---------- Dia / noite ---------- */
+function applyNight() {
+  scene.background = new THREE.Color(isNight ? 0x0b1020 : 0xbcd6ee);
+  if (scene.fog) scene.fog.color.set(isNight ? 0x0b1020 : 0xbcd6ee);
+  hemi.intensity = isNight ? .25 : .9;
+  sun.intensity = isNight ? .35 : 2.2;
+  sun.color.set(isNight ? 0x9fb4ff : 0xfff1dc);
+  nightMats.forEach(m => m.emissiveIntensity = isNight ? 1 : 0);
+  document.getElementById('btnNight').textContent = isNight ? 'Dia' : 'Noite';
+}
+
+/* ---------- Câmera / foco ---------- */
+let focus = null;
+function flyTo(id) {
+  const e = entityPos.get(id); if (!e) return;
+  const target = e.pos.clone().setY(e.h * .5);
+  const dist = Math.max(45, e.h * 2.2);
+  focus = { target, cam: target.clone().add(new THREE.Vector3(dist * .75, dist * .65, dist * .85)) };
+}
+controls.addEventListener('start', () => focus = null);
+
+/* ---------- Clique na cena ---------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let downAt = null;
+function pickAt(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickRoots, true)[0];
+  let o = hit?.object;
+  while (o && !o.userData.pick) o = o.parent;
+  return o?.userData.pick;
+}
+renderer.domElement.addEventListener('pointerdown', e => downAt = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const p = pickAt(e);
+  if (!p) return;
+  if (p.type === 'client') openClient(p.id);
+  else if (p.type === 'employee') openEmployee(p.id);
+  else if (p.type === 'hall') openHall();
+  else if (p.type === 'empty') openClientForm(null);
+});
+let hoverTick = 0;
+renderer.domElement.addEventListener('pointermove', e => {
+  if (++hoverTick % 3) return;
+  renderer.domElement.style.cursor = pickAt(e) ? 'pointer' : 'grab';
+});
+
+/* ---------- Loop ---------- */
+const clock = new THREE.Clock();
+function animate() {
+  const dt = Math.min(clock.getDelta(), .05), time = clock.elapsedTime;
+  const lim = cityHalf - 2;
+  for (const c of cars) {
+    c.t += c.dir * c.speed * dt;
+    if (c.t > lim) c.t = -lim; if (c.t < -lim) c.t = lim;
+    if (c.axis === 'x') c.g.position.set(c.t, .05, c.line); else c.g.position.set(c.line, .05, c.t);
+  }
+  beacons.forEach(b => b.material.emissiveIntensity = 1 + Math.sin(time * 6) * 1.5);
+  flags.forEach(f => f.rotation.y = Math.sin(time * 2) * .25);
+  if (focus) {
+    controls.target.lerp(focus.target, .08); camera.position.lerp(focus.cam, .08);
+    if (camera.position.distanceTo(focus.cam) < .5) focus = null;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
+});
+
+/* =========================================================
+   INTERFACE
+   ========================================================= */
+const panel = document.getElementById('panel');
+const show = html => { panel.innerHTML = html; panel.classList.remove('hidden'); document.body.classList.add('panel-open'); panel.scrollTop = 0; };
+const closePanel = () => { panel.classList.add('hidden'); document.body.classList.remove('panel-open'); };
+let currentView = null; // para atualizar o painel após salvar
+
+function toast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function renderStats() {
+  const t = totals();
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><small>Aluguéis / mês</small><b>${fmt(t.fee)}</b></div>
+    <div class="stat"><small>Impostos (NF)</small><b>${fmt(t.tax)}</b></div>
+    <div class="stat"><small>Repasses</small><b>${fmt(t.payroll)}</b></div>
+    <div class="stat"><small>Caixa da prefeitura</small><b>${fmt(t.agency)}</b></div>
+    <div class="stat"><small>Empresas ativas</small><b>${t.active}</b></div>
+    <div class="stat ${t.late ? 'alert' : ''}"><small>Em atraso</small><b>${t.late}</b></div>`;
+}
+
+const head = (kicker, title, extra = '') => `
+  <div class="ph"><div><div class="kicker">${kicker}</div><h2>${title}</h2>${extra}</div>
+  <button class="ghost" data-act="close" aria-label="Fechar">✕</button></div>`;
+
+function sharesHtml(k) {
+  const rows = k.shares.filter(s => s.pct > 0).map(s => `
+    <div class="share"><div class="top"><span><i class="dot" style="background:${s.e.color}"></i>${esc(s.e.name)} <span class="muted">· ${pct(s.pct)}</span></span><b>${fmt(s.value)}</b></div>
+    <div class="bar"><i style="width:${Math.min(100, s.pct)}%;background:${s.e.color}"></i></div></div>`).join('');
+  return `${rows || '<div class="muted">Nenhum funcionário alocado neste cliente.</div>'}
+    <div class="share"><div class="top"><span><i class="dot" style="background:#fff"></i>Prefeitura (Gaiden) <span class="muted">· ${pct(k.agencyPct)}</span></span><b>${fmt(k.agency)}</b></div>
+    <div class="bar"><i style="width:${Math.max(0, Math.min(100, k.agencyPct))}%;background:#fff"></i></div></div>`;
+}
+
+function openClient(id) {
+  const c = state.clients.find(x => x.id === id); if (!c) return closePanel();
+  currentView = ['client', id]; flyTo(id);
+  const k = calcClient(c), late = isLate(c), paid = c.lastPaid === ym();
+  const d = new Date(), comp = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  show(head('Empresa da cidade', esc(c.name),
+    `<span class="badge s-${c.status}">${STATUS[c.status]}</span>${late ? '<span class="badge s-atraso">Aluguel atrasado</span>' : ''}`) + `
+    <section class="card">
+      <h3>Contrato de aluguel</h3>
+      <div class="row big"><span>Fee mensal</span><b>${fmt(k.fee)}</b></div>
+      <div class="row"><span>Vencimento</span><b>todo dia ${+c.dueDay || 1}</b></div>
+      ${c.status === 'ativo' ? `<div class="row"><span>Pagamento de ${comp}</span><b style="color:${paid ? 'var(--ok)' : late ? 'var(--bad)' : 'var(--warn)'}">${paid ? 'Pago' : late ? 'Atrasado' : 'Pendente'}</b></div>
+      <div class="actions"><button data-act="${paid ? 'unpay' : 'pay'}" data-id="${c.id}">${paid ? 'Desfazer pagamento' : 'Marcar como pago'}</button></div>` : ''}
+    </section>
+    <div class="nf">
+      <h4>NFS-e · SIMULAÇÃO</h4><div class="sub">Documento ilustrativo, sem valor fiscal · Competência ${comp}</div>
+      <div class="row"><span>Prestador</span><b>Gaiden Design</b></div>
+      <div class="row"><span>Tomador</span><b>${esc(c.name)}</b></div>
+      <div class="row"><span>Serviços</span><b>${esc((c.services || []).join(', ') || '—')}</b></div><hr>
+      <div class="row"><span>Valor dos serviços</span><b>${fmt(k.fee)}</b></div>
+      <div class="row"><span>Alíquota ${c.taxRate === null || c.taxRate === '' ? '(padrão)' : '(do cliente)'}</span><b>${pct(k.rate)}</b></div>
+      <div class="row"><span>Imposto retido</span><b>− ${fmt(k.tax)}</b></div><hr>
+      <div class="row"><span><b>Valor líquido</b></span><b>${fmt(k.net)}</b></div>
+    </div>
+    <section class="card"><h3>Repasse do líquido</h3>${sharesHtml(k)}</section>
+    <section class="card"><h3>Contato e serviços</h3>
+      <div class="row"><span>Responsável</span><b>${esc(c.contact?.name || '—')}</b></div>
+      <div class="row"><span>Telefone</span><b>${esc(c.contact?.phone || '—')}</b></div>
+      <div class="row"><span>E-mail</span><b>${esc(c.contact?.email || '—')}</b></div>
+      <div style="margin-top:6px">${(c.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">Sem serviços cadastrados</span>'}</div>
+    </section>
+    <div class="actions"><button class="primary" data-act="edit-client" data-id="${c.id}">Editar</button>
+      <button class="danger" data-act="del-client" data-id="${c.id}">Demolir (excluir)</button></div>`);
+}
+
+function openHall() {
+  currentView = ['hall']; flyTo('hall');
+  const t = totals();
+  const emps = state.employees.map(e => `
+    <div class="list-item" data-act="open-emp" data-id="${e.id}">
+      <span><i class="dot" style="background:${e.color}"></i><b>${esc(e.name)}</b><br><small class="muted">${esc(e.role || '')} · ${t.emp[e.id].clients} cliente(s)</small></span>
+      <b>${fmt(t.emp[e.id].total)}</b></div>`).join('');
+  show(head('Gaiden Design', 'Prefeitura') + `
+    <section class="card"><h3>Orçamento municipal (mensal)</h3>
+      <div class="row"><span>Aluguéis recebidos</span><b>${fmt(t.fee)}</b></div>
+      <div class="row"><span>Impostos das notas</span><b>− ${fmt(t.tax)}</b></div>
+      <div class="row"><span>Receita líquida</span><b>${fmt(t.net)}</b></div>
+      <div class="row"><span>Repasses aos funcionários</span><b>− ${fmt(t.payroll)}</b></div>
+      <div class="row total big"><span>Caixa da prefeitura</span><b>${fmt(t.agency)}</b></div>
+      <div class="row"><span>Em negociação (obras)</span><b>${fmt(t.pipeline)}</b></div>
+    </section>
+    <section class="card"><h3>Configuração fiscal</h3>
+      <label>Alíquota padrão da nota fiscal (%)</label>
+      <input type="number" step="0.01" min="0" max="100" value="${state.taxRate}" data-cfg="taxRate">
+      <div class="hint">Usada em todos os clientes que não têm alíquota própria.</div>
+    </section>
+    <section class="card"><h3>Funcionários (moradores)</h3>${emps || '<div class="muted">Nenhum funcionário.</div>'}
+      <div class="actions"><button class="primary" data-act="add-emp">+ Adicionar funcionário</button></div>
+    </section>`);
+}
+
+function openEmployee(id) {
+  const e = state.employees.find(x => x.id === id); if (!e) return closePanel();
+  currentView = ['emp', id]; flyTo(id);
+  const t = totals();
+  const rows = state.clients.map(c => ({ c, k: calcClient(c) })).map(({ c, k }) => ({ c, s: k.shares.find(s => s.e.id === id) }))
+    .filter(x => x.s && x.s.pct > 0)
+    .map(({ c, s }) => `<div class="list-item" data-act="open-client" data-id="${c.id}">
+      <span>${esc(c.name)}<br><small class="muted">${pct(s.pct)} do líquido · <span class="badge s-${c.status}">${STATUS[c.status]}</span></small></span>
+      <b style="${c.status !== 'ativo' ? 'opacity:.5' : ''}">${fmt(s.value)}</b></div>`).join('');
+  show(head('Morador · funcionário', `<i class="dot" style="background:${e.color}"></i>${esc(e.name)}`, `<span class="muted">${esc(e.role || '')}</span>`) + `
+    <section class="card"><div class="row big"><span>Recebe por mês</span><b>${fmt(t.emp[id].total)}</b></div>
+    <div class="hint">Soma do que recebe de cada cliente ativo, já descontado o imposto da nota.</div></section>
+    <section class="card"><h3>Ganhos por cliente</h3>${rows || '<div class="muted">Ainda não alocado em nenhum cliente.</div>'}</section>
+    <div class="actions"><button class="primary" data-act="edit-emp" data-id="${id}">Editar</button>
+    <button class="danger" data-act="del-emp" data-id="${id}">Remover</button></div>`);
+}
+
+function openList() {
+  currentView = ['list'];
+  const items = [...state.clients].sort((a, b) => (+b.fee || 0) - (+a.fee || 0)).map(c => `
+    <div class="list-item" data-act="open-client" data-id="${c.id}" data-name="${esc(c.name.toLowerCase())}">
+      <span>${esc(c.name)}<br><span class="badge s-${c.status}">${STATUS[c.status]}</span>${isLate(c) ? '<span class="badge s-atraso">Atrasado</span>' : ''}</span>
+      <b>${fmt(+c.fee)}</b></div>`).join('');
+  show(head('Cadastro', 'Empresas da cidade') + `
+    <input placeholder="Buscar empresa…" id="search">
+    <div id="listItems" style="margin-top:8px">${items || '<div class="muted">Nenhuma empresa ainda.</div>'}</div>
+    <div class="actions"><button class="primary" data-act="add-client">+ Nova empresa</button></div>`);
+  document.getElementById('search').addEventListener('input', ev => {
+    const q = ev.target.value.toLowerCase();
+    panel.querySelectorAll('#listItems .list-item').forEach(el => el.style.display = el.dataset.name.includes(q) ? '' : 'none');
+  });
+}
+
+function openClientForm(id) {
+  const c = id ? state.clients.find(x => x.id === id) : { name: '', fee: '', taxRate: null, status: 'ativo', dueDay: 10, splits: {}, services: [], contact: {} };
+  currentView = null;
+  const splits = state.employees.map(e => `
+    <div class="split-row"><span><i class="dot" style="background:${e.color}"></i>${esc(e.name)}</span>
+    <input type="number" step="0.1" min="0" max="100" name="split_${e.id}" value="${c.splits?.[e.id] ?? ''}" placeholder="0 %"></div>`).join('');
+  show(head(id ? 'Editar empresa' : 'Nova empresa na cidade', id ? esc(c.name) : 'Construir em um lote') + `
+    <form data-form="client" data-id="${id || ''}">
+      <label>Nome da empresa</label><input name="name" required value="${esc(c.name)}">
+      <div class="grid2">
+        <div><label>Fee mensal (R$)</label><input name="fee" type="number" step="0.01" min="0" required value="${c.fee}"></div>
+        <div><label>Vencimento (dia)</label><input name="dueDay" type="number" min="1" max="31" value="${c.dueDay || 10}"></div>
+        <div><label>Status</label><select name="status">${Object.entries(STATUS).map(([v, l]) => `<option value="${v}" ${c.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label>Alíquota própria (%)</label><input name="taxRate" type="number" step="0.01" min="0" max="100" value="${c.taxRate ?? ''}" placeholder="Padrão ${state.taxRate}%"></div>
+      </div>
+      <label>Serviços (separe por vírgula)</label><input name="services" value="${esc((c.services || []).join(', '))}">
+      <label>Responsável</label><input name="cname" value="${esc(c.contact?.name || '')}">
+      <div class="grid2">
+        <div><label>Telefone</label><input name="phone" value="${esc(c.contact?.phone || '')}"></div>
+        <div><label>E-mail</label><input name="email" type="email" value="${esc(c.contact?.email || '')}"></div>
+      </div>
+      <section class="card"><h3>Divisão do líquido (% por funcionário)</h3>${splits || '<div class="muted">Cadastre funcionários na prefeitura.</div>'}
+        <div class="hint" id="splitHint"></div></section>
+      <div id="preview"></div>
+      <div class="actions"><button class="primary" type="submit">${id ? 'Salvar' : 'Construir empresa'}</button>
+      <button type="button" data-act="${id ? 'open-client' : 'close'}" data-id="${id || ''}">Cancelar</button></div>
+    </form>`);
+  const form = panel.querySelector('form');
+  const upd = () => {
+    const draft = readClientForm(form, c);
+    const k = calcClient(draft), hint = document.getElementById('splitHint');
+    hint.innerHTML = k.agencyPct < 0 ? `<span class="err">A soma passou de 100% (${pct(100 - k.agencyPct)}).</span>` : `Prefeitura (Gaiden) fica com ${pct(k.agencyPct)} do líquido.`;
+    document.getElementById('preview').innerHTML = `<section class="card"><h3>Prévia da nota</h3>
+      <div class="row"><span>Fee</span><b>${fmt(k.fee)}</b></div>
+      <div class="row"><span>Imposto (${pct(k.rate)})</span><b>− ${fmt(k.tax)}</b></div>
+      <div class="row"><span>Líquido</span><b>${fmt(k.net)}</b></div>
+      ${k.shares.filter(s => s.pct > 0).map(s => `<div class="row"><span>${esc(s.e.name)}</span><b>${fmt(s.value)}</b></div>`).join('')}
+      <div class="row total"><span>Caixa da prefeitura</span><b>${fmt(k.agency)}</b></div></section>`;
+  };
+  form.addEventListener('input', upd); upd();
+  form.querySelector('[name=name]').focus();
+}
+function readClientForm(form, base = {}) {
+  const f = new FormData(form), splits = {};
+  state.employees.forEach(e => { const v = parseFloat(f.get('split_' + e.id)); if (v > 0) splits[e.id] = v; });
+  const tr = f.get('taxRate');
+  return {
+    ...base, name: f.get('name').trim(), fee: parseFloat(f.get('fee')) || 0, dueDay: Math.min(31, Math.max(1, parseInt(f.get('dueDay')) || 1)),
+    status: f.get('status'), taxRate: tr === '' ? null : parseFloat(tr),
+    services: f.get('services').split(',').map(s => s.trim()).filter(Boolean),
+    contact: { name: f.get('cname').trim(), phone: f.get('phone').trim(), email: f.get('email').trim() }, splits,
+  };
+}
+
+function openEmpForm(id) {
+  const e = id ? state.employees.find(x => x.id === id) : { name: '', role: '', color: EMP_COLORS[state.employees.length % EMP_COLORS.length] };
+  currentView = null;
+  show(head(id ? 'Editar funcionário' : 'Novo morador', id ? esc(e.name) : 'Adicionar funcionário') + `
+    <form data-form="emp" data-id="${id || ''}">
+      <label>Nome</label><input name="name" required value="${esc(e.name)}">
+      <label>Cargo / função</label><input name="role" value="${esc(e.role || '')}">
+      <label>Cor do telhado</label><input name="color" type="color" value="${e.color}" style="height:40px;padding:4px">
+      <div class="hint">A porcentagem que cada funcionário recebe é definida dentro de cada cliente.</div>
+      <div class="actions"><button class="primary" type="submit">${id ? 'Salvar' : 'Construir casa'}</button>
+      <button type="button" data-act="${id ? 'open-emp' : 'open-hall'}" data-id="${id || ''}">Cancelar</button></div>
+    </form>`);
+  panel.querySelector('[name=name]').focus();
+}
+
+/* ---------- Eventos ---------- */
+function handleAct(act, id) {
+  const c = id && state.clients.find(x => x.id === id);
+  switch (act) {
+    case 'close': currentView = null; closePanel(); break;
+    case 'add-client': openClientForm(null); break;
+    case 'open-hall': openHall(); break;
+    case 'open-list': openList(); break;
+    case 'open-client': openClient(id); break;
+    case 'open-emp': openEmployee(id); break;
+    case 'edit-client': openClientForm(id); break;
+    case 'add-emp': openEmpForm(null); break;
+    case 'edit-emp': openEmpForm(id); break;
+    case 'pay': c.lastPaid = ym(); save(); toast('Aluguel do mês registrado como pago'); break;
+    case 'unpay': c.lastPaid = null; save(); break;
+    case 'del-client':
+      if (confirm(`Excluir "${c.name}" da cidade?`)) { state.clients = state.clients.filter(x => x.id !== id); currentView = null; closePanel(); save(); toast('Empresa demolida'); }
+      break;
+    case 'del-emp': {
+      const e = state.employees.find(x => x.id === id);
+      if (confirm(`Remover ${e.name}? A parte dele(a) nos clientes volta para o caixa da prefeitura.`)) {
+        state.employees = state.employees.filter(x => x.id !== id);
+        state.clients.forEach(cl => { if (cl.splits) delete cl.splits[id]; });
+        currentView = ['hall']; save();
+      }
+      break;
+    }
+    case 'toggle-night': isNight = !isNight; applyNight(); break;
+    case 'toggle-labels': document.body.classList.toggle('no-labels'); break;
+    case 'export': {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `gaiden-city-crm-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000); break;
+    }
+    case 'import': document.getElementById('importFile').click(); break;
+  }
+}
+document.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  handleAct(el.dataset.act, el.dataset.id || null);
+});
+panel.addEventListener('submit', ev => {
+  ev.preventDefault();
+  const form = ev.target, id = form.dataset.id;
+  if (form.dataset.form === 'client') {
+    const base = id ? state.clients.find(x => x.id === id) : { id: uid(), lastPaid: null };
+    const data = readClientForm(form, base);
+    if (calcClient(data).agencyPct < 0) return toast('A divisão passou de 100%');
+    if (id) Object.assign(base, data); else state.clients.push(data);
+    currentView = ['client', data.id]; save(); toast(id ? 'Empresa atualizada' : 'Nova empresa construída!');
+  } else {
+    const f = new FormData(form);
+    const data = { name: f.get('name').trim(), role: f.get('role').trim(), color: f.get('color') };
+    if (id) { Object.assign(state.employees.find(x => x.id === id), data); currentView = ['emp', id]; }
+    else { const ne = { id: uid(), ...data }; state.employees.push(ne); currentView = ['emp', ne.id]; }
+    save(); toast('Funcionário salvo');
+  }
+});
+panel.addEventListener('change', ev => {
+  if (ev.target.dataset.cfg === 'taxRate') {
+    state.taxRate = Math.max(0, Math.min(100, parseFloat(ev.target.value) || 0)); save(); toast('Alíquota padrão atualizada');
+  }
+});
+document.getElementById('importFile').addEventListener('change', async ev => {
+  const file = ev.target.files[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.clients) || !Array.isArray(data.employees)) throw new Error();
+    state = { taxRate: 6, ...data }; currentView = null; closePanel(); save(); toast('Dados importados');
+  } catch { toast('Arquivo inválido'); }
+  ev.target.value = '';
+});
+addEventListener('keydown', e => { if (e.key === 'Escape' && !e.target.closest('input,textarea,select')) closePanel(); });
+
+function refresh() {
+  renderStats();
+  buildCity();
+  if (!currentView) return;
+  const [v, id] = currentView;
+  if (v === 'client') openClient(id); else if (v === 'emp') openEmployee(id);
+  else if (v === 'hall') openHall(); else if (v === 'list') openList();
+}
+
+/* ---------- Início ---------- */
+renderStats();
+buildCity();
+camera.position.set(cityHalf * 1.1, cityHalf * .95, cityHalf * 1.25);
+controls.target.set(0, 0, 0);
+document.getElementById('loading').remove();
+animate();
+</script>
+</body>
+</html>
