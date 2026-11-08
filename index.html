@@ -6,6 +6,7 @@
 <title>Gaiden City CRM</title>
 <style>
   :root{
+    color-scheme:dark;
     --bg:#0f1420; --glass:rgba(16,22,34,.86); --line:rgba(255,255,255,.10);
     --text:#eef2f8; --muted:#9aa6ba; --accent:#ff7a59; --ok:#38c793; --warn:#ffc145; --bad:#ff5c6c;
     --radius:14px;
@@ -872,26 +873,55 @@ function handleAct(act, id) {
     case 'pay': c.lastPaid = ym(); save(); toast('Aluguel do mês registrado como pago'); break;
     case 'unpay': c.lastPaid = null; save(); break;
     case 'del-client':
-      if (confirm(`Excluir "${c.name}" da cidade?`)) { state.clients = state.clients.filter(x => x.id !== id); currentView = null; closePanel(); save(); toast('Empresa demolida'); }
+      currentView = null;
+      show(head('Confirmar', 'Demolir empresa?') + `<p>“${esc(c.name)}” será removida da cidade. Isso não pode ser desfeito.</p>
+        <div class="actions"><button class="danger" data-act="del-client-yes" data-id="${id}">Sim, demolir</button>
+        <button data-act="open-client" data-id="${id}">Cancelar</button></div>`);
+      break;
+    case 'del-client-yes':
+      state.clients = state.clients.filter(x => x.id !== id); currentView = null; closePanel(); save(); toast('Empresa demolida');
       break;
     case 'del-emp': {
       const e = state.employees.find(x => x.id === id);
-      if (confirm(`Remover ${e.name}? A parte dele(a) nos clientes volta para o caixa da prefeitura.`)) {
-        state.employees = state.employees.filter(x => x.id !== id);
-        state.clients.forEach(cl => { if (cl.splits) delete cl.splits[id]; });
-        currentView = ['hall']; save();
-      }
+      currentView = null;
+      show(head('Confirmar', 'Remover funcionário?') + `<p>${esc(e.name)} sairá da cidade. A parte dele(a) em cada cliente volta para o caixa da prefeitura.</p>
+        <div class="actions"><button class="danger" data-act="del-emp-yes" data-id="${id}">Sim, remover</button>
+        <button data-act="open-emp" data-id="${id}">Cancelar</button></div>`);
       break;
     }
+    case 'del-emp-yes':
+      state.employees = state.employees.filter(x => x.id !== id);
+      state.clients.forEach(cl => { if (cl.splits) delete cl.splits[id]; });
+      currentView = ['hall']; save(); toast('Funcionário removido');
+      break;
     case 'toggle-night': isNight = !isNight; applyNight(); break;
     case 'toggle-labels': document.body.classList.toggle('no-labels'); break;
-    case 'export': {
+    case 'export':
+      currentView = null;
+      show(head('Backup', 'Exportar dados') + `<p class="muted">Copie o texto abaixo e guarde num arquivo ou documento. Para restaurar, use Importar e cole este texto.</p>
+        <textarea id="exportText" rows="14" readonly style="font-family:monospace;font-size:12px">${esc(JSON.stringify(state, null, 2))}</textarea>
+        <div class="actions"><button class="primary" data-act="copy-export">Copiar</button><button data-act="download-export">Baixar arquivo .json</button></div>`);
+      break;
+    case 'copy-export': {
+      const ta = document.getElementById('exportText');
+      navigator.clipboard?.writeText(ta.value).then(() => toast('Copiado'), () => { ta.select(); toast('Selecionado: use Ctrl+C'); })
+        ?? (ta.select(), toast('Selecionado: use Ctrl+C'));
+      break;
+    }
+    case 'download-export': {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
       a.download = `gaiden-city-crm-${new Date().toISOString().slice(0, 10)}.json`; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000); break;
     }
-    case 'import': document.getElementById('importFile').click(); break;
+    case 'import':
+      currentView = null;
+      show(head('Backup', 'Importar dados') + `<p class="muted">Cole o texto exportado ou escolha o arquivo .json. Os dados atuais da cidade serão substituídos.</p>
+        <textarea id="importText" rows="10" placeholder='{"taxRate":6,"employees":[...],"clients":[...]}' style="font-family:monospace;font-size:12px"></textarea>
+        <div class="actions"><button class="primary" data-act="import-text">Importar texto</button><button data-act="import-file">Escolher arquivo</button></div>`);
+      break;
+    case 'import-text': importJSON(document.getElementById('importText').value); break;
+    case 'import-file': document.getElementById('importFile').click(); break;
   }
 }
 document.addEventListener('click', ev => {
@@ -922,13 +952,16 @@ panel.addEventListener('change', ev => {
 });
 document.getElementById('importFile').addEventListener('change', async ev => {
   const file = ev.target.files[0]; if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    if (!Array.isArray(data.clients) || !Array.isArray(data.employees)) throw new Error();
-    state = { taxRate: 6, ...data }; currentView = null; closePanel(); save(); toast('Dados importados');
-  } catch { toast('Arquivo inválido'); }
+  importJSON(await file.text());
   ev.target.value = '';
 });
+function importJSON(text) {
+  try {
+    const data = JSON.parse(text);
+    if (!Array.isArray(data.clients) || !Array.isArray(data.employees)) throw new Error();
+    state = { taxRate: 6, ...data }; currentView = null; closePanel(); save(); toast('Dados importados');
+  } catch { toast('Texto inválido: cole o conteúdo completo exportado pela cidade'); }
+}
 addEventListener('keydown', e => { if (e.key === 'Escape' && !e.target.closest('input,textarea,select')) closePanel(); });
 
 function refresh() {
